@@ -1,0 +1,14 @@
+
+1. crear tags amb Autor1, autor2, autor3
+
+2. crear categories Digital, Tradicional i Colecció
+
+3. procés que afegeixi l'autor del titol al tag d'autor (tipus ="product_tag")
+
+4. procés que associï els productes digitals amb la categoria DIGITAL (tipus ="product_cat")
+
+5. traspassar les obres del .cat al uploads del .com
+
+6. buscar funció que genera el _edit_lock
+
+7. buscar funció per canviar el nom dels arxius uploads origen
