@@ -1,5 +1,11 @@
 <?php
 
+const ARTINPOCKET_CAT = true;
+
+if (ARTINPOCKET_CAT)
+	define('DOMINI' , 'http://www.artinpocket.cat');
+else
+	define('DOMINI' , 'http://www.inpocketart.com');	
 
 // require("./wp-load.php");
 
@@ -10,8 +16,8 @@ $wpdb_other = new wpdb( DB_USER, DB_PASSWORD, DB_NAME, DB_HOST);
 set_time_limit(0);
 ini_set('memory_limit', '2048M');
 
-// $query = $wpdb->prepare('SELECT * FROM wp_postmeta WHERE post_id=%d',2199);
-// $result = $wpdb->get_results($query);
+// $query = $wpdb_other->prepare('SELECT * FROM wp_postmeta WHERE post_id=%d',2199);
+// $result = $wpdb_other->get_results($query);
 // echo "<ul>";
 // foreach ($result as $obj) :
 //    echo "<li>".$obj->meta_key. "-" . $obj->meta_value."</li>";
@@ -23,10 +29,35 @@ $titol      = "titol OBRA";
 $postName   = "Nom del Post";
 
 $postValors = (object)array(
+	'postType' 	 => 'attachment',
+	'postParent' => 0,
 	'descripcio' => $descripcio,
 	'titol'      => $titol,
-	'postName'   => $postName
+	'excerpt'	 => '',
+	'postName'   => $postName,
+	'mimeType'	 => '',
+	'guid'		 => '',
+	'attachment' => array(),
 	);
+
+$postValors->attachment[0] = (object)array(
+	'any'		 => 2014,
+	'mes'		 => '07',
+	'filename'   => $titol . '.jpg'
+	);
+
+$postValors->attachment[1] = (object)array(
+	'any'		 => 2014,
+	'mes'		 => '07',
+	'filename'   => $titol . '_1.jpg'
+	);
+
+$postValors->attachment[2] = (object)array(
+	'any'		 => 2014,
+	'mes'		 => '07',
+	'filename'   => $titol . '_2.jpg'
+	);
+
 
 $sku       = 'W999';
 $preu      = 999;
@@ -41,66 +72,84 @@ $postMetaValors = (object)array(
 	);
 
 
-addPost( $postValors, $postMetaValors );
+/////////////////////////////////////////////////////////////////////////
 
-$bigArray = (array)maybe_unserialize(get_post_meta(2261, '_wp_attachment_metadata', true));
-var_dump($bigArray);
-foreach($bigArray as $key=>$val) 
-	{
-	echo $key . ' : ' . $val . '<br/>';
-	if (gettype($val) == 'array')
-		foreach($val as $key1=>$val1)
-			{
-			echo $key1 . ' : ' . $val1 . '<br/>';
-			if (gettype($val1) == 'array')
-				foreach($val1 as $key2=>$val2)
-					echo $key2 . ' : ' . $val2 . '<br/>';
-			}
-	}
-echo '<br/><br/><br/>';
 
-my_attachment_all_images(2260);
+$post_ids = addPost( $wpdb_other, $postValors );
 
-// $sellerArray=$sellerBigArray['billing-seller'];
+// var_dump($post_ids);
 
-// $seller=$sellerArray['value'];
-
+// addPostMeta( $post_ids, $postMetaValors );
 
 /////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////
 
 
-function my_attachment_all_images($postid=0, $size='full', $attributes='') {
-    if ($postid<1) $postid = get_the_ID();
-    if ($images = get_children(array(
-        'post_parent' => $postid,
-        'post_type' => 'attachment',
-        'numberposts' => -1,
-        'orderby' => 'menu_order',
-        'post_mime_type' => 'image',)))
-        foreach($images as $image) {
-            $attachment=wp_get_attachment_image_src($image->ID, $size);
-            var_dump($attachment);
-            ?><img src="<?php echo $attachment[0]; ?>" alt="" class="imarge" /><?php
-        }
-}
-
-
-
-function addPost( $postValors, $postMetaValors )
+function addPost( $wpdb_other, $postValors )
 {
-    $post = getArrayPost( $postValors );
-    if($post_id = wp_insert_post($post))
+	$post_ids = array();
+    $post = getArrayPost( $postValors);
+    if($post_ids[] = wp_insert_post($post))
     	{
-    	print_r($post_id);
-		$myvals = get_post($post_id);
+    	updateGuid( $wpdb_other, $post_ids[0]);
+    	print_r($post_ids[0]);
+		$myvals = get_post($post_ids[0]);
 		echo "<pre>";
 		foreach($myvals as $key=>$val) echo $key . ' : ' . $val . '<br/>';    	
     	echo '<br/><br/><br/>';
 
-
-    	addPostMeta( $post_id, $postMetaValors);
+		// $postValors->postType   = 'attachment';
+		// $postValors->excerpt    = $postValors->titol;
+		// $postValors->mimeType   = 'image/jpeg';
+		// $postValors->postParent = $post_ids[0];
+		// foreach ($postValors->attachment as $key => $attData)
+		// 	{
+		// 	foreach ($attData as $key1)
+	 //    		$attachment = DOMINI .'/wp-content/uploads/' .
+	 //    								$attData->any .  '/' .
+	 //    								$attData->mes .  '/' .
+	 //    								$attData->filename;
+		// 	$postValors->guid = $attachment;	    	
+		//     $post        = getArrayPost( $postValors );
+  //   		$post_ids[]  = wp_insert_post($post);
+		// 	}
 		}
+	return ($post_ids);
+}
+
+function updateGuid($wpdb_other, $post_id)
+{
+	$attachment =  DOMINI . '?post_type=product&#038;p=' . $post_id;
+	var_dump($attachment);
+
+	$postGuid = array(
+  				'ID'   => $post_id,
+  				'guid' => $attachment,
+  				);
+	wp_update_post($postGuid);
+
+
+// 	$rows = $wpdb_other->update( 
+//     'wp_post', 
+//     array( 
+//         'post_type' => 'product'
+//     ), 
+//     array( 'ID' => $post_id ), 
+//     array( 
+//         '%s'
+//     ), 
+//     array( '%d' ) 
+// );
+
+
+
+	$query = $wpdb_other->prepare("UPDATE $wpdb_other->posts SET post_type = '%s' WHERE ID='%d';",'product', $post_id);
+	// $query = 'UPDATE $wpdb_other>posts SET post_title = "' . $attachment . '" WHERE ID=' . $post_id .";";
+	$result = $wpdb_other->get_results($query);
+	var_dump($query);
+	var_dump($result);
+
+
 }
 
 function getArrayPost( $postValors )
@@ -112,7 +161,7 @@ function getArrayPost( $postValors )
 		'post_date_gmt'         => $dateTime,
         'post_content'          => $postValors->descripcio,
         'post_title'            => $postValors->titol,
-        'post_excerpt'          => 'excerpt',
+        'post_excerpt'          => $postValors->excerpt,
         'post_status'           => 'publish', 
         'comment_status'        => 'open', 
         'ping_status'           => 'open', 
@@ -123,18 +172,18 @@ function getArrayPost( $postValors )
 		'post_modified'         => $dateTime,
 		'post_modified_gmt'     => $dateTime,
 		'post_content_filtered' => '',
-		'post_parent'           => 0,
-		'guid'                  => '??????????',
+		'post_parent'           => $postValors->postParent,
+		'guid'                  => $postValors->guid,
 		'menu_order'            => 0,
-        'post_type'             => 'product',
-        'post_mime_type'        => '',
+        'post_type'             => $postValors->postType,
+        'post_mime_type'        => $postValors->mimeType,
         'comment_count'         => 0
     );
 	return ($post);
 }
 
 
-function addPostMeta($post_id, $postMetaValors)
+function addPostMeta($post_ids, $postMetaValors)
 {
 	$postMeta = (object)getArrayPostMeta( $postMetaValors );
 	foreach($postMeta as $key=>$val)
@@ -154,8 +203,8 @@ function getArrayPostMeta( $postMetaValors )
 		'_thumbnail_id'          => '999999999',
 		'_visibility'            => 'visible',
 		'_stock_status'          => 'instock',
-		'_downloadable'          => 'yes',
-		'_virtual'               => 'yes',
+		'_downloadable'          => 'no',
+		'_virtual'               => 'no',
 		'_regular_price'         => $postMetaValors->preu,
 		'_sale_price'            => '',
 		'_purchase_note'         => '',
