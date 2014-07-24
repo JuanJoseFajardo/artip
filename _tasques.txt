@@ -9,6 +9,6 @@
 
 5. traspassar les obres del .cat al uploads del .com
 
-6. buscar funció que genera el _edit_lock
+6. buscar funció per canviar el nom dels arxius uploads origen
 
-7. buscar funció per canviar el nom dels arxius uploads origen
+7. mides i pesos pel transport.
