@@ -7,8 +7,4 @@
 
 4. procés que associï els productes digitals amb la categoria DIGITAL (tipus ="product_cat")
 
-5. traspassar les obres del .cat al uploads del .com
-
-6. buscar funció per canviar el nom dels arxius uploads origen
-
-7. mides i pesos pel transport.
+5. mides i pesos pel transport.
