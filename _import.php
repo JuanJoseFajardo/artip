@@ -1,9 +1,10 @@
 <?php
 
-const ARTINPOCKET_CAT    = true;
-const ORIGEN_UPLOADS     = './_obres.cat/'; 
-const DESTINACIO_UPLOADS = './wp-content/uploads/'; 
-const DB_ORIGEN          = 'wpartinpocket.cat';
+const ARTINPOCKET_CAT      = true;
+const ORIGEN_UPLOADS       = './_obres.cat/'; 
+const ORIGEN_AUTOR_UPLOADS = './_autors.cat/'; 
+const DESTINACIO_UPLOADS   = './wp-content/uploads/'; 
+const DB_ORIGEN            = 'wpartinpocket.cat';
 
 
 if (ARTINPOCKET_CAT)
@@ -17,8 +18,8 @@ require_once( $_SERVER['DOCUMENT_ROOT'] . '/artinpocket/wp-config.php' );
 require_once( $_SERVER['DOCUMENT_ROOT'] . '/artinpocket/wp-includes/wp-db.php' );
 $wpdb_other = new wpdb( DB_USER, DB_PASSWORD, DB_NAME, DB_HOST);
 
-set_time_limit(0);
-ini_set('memory_limit', '2048M');
+// set_time_limit(0);
+// ini_set('memory_limit', '2048M');
 
 /////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +30,7 @@ importExport($wpdb);
 
 function importExport($wpdb)
 {
-$res1 = "";
+$res1 = $res2 = "";
 
 $dades = getDadesDBOrigen();
 
@@ -41,21 +42,34 @@ if ($dades->status != "error")
 		echo "</br></br>";
 		$postValors = assignaDadesPost($row);
 		print_r($postValors);
-		echo "</br></br>";		
+		echo "</br></br>";
+		// afegeix un post amb el producte + attachment de la imatge
 		$post_ids = addPost( $postValors );
 		var_dump($post_ids);
+		// afegeix un postMeta amb el producte + attachment de la imatge
 		addPostMeta( $post_ids, $postValors, assignaDadesPostMeta($row) );
-
-		// insertarCategoriaoTag($wpdb, assignaDadesCategoria($post_ids[0], $row) );
-		// insertarCategoriaoTag($wpdb, assignaDadesTag($post_ids[0], $row) );
-
-		$res = renombraImatge( assignaDadesImatges($row, $postValors->attachment[0]->postName) );
-		if ($res != "") $res1 .= $res . ",";
+		// inserta categoria TRADICIONAL
+		insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, true) );
+		// inserta categoria colecció
+		if ($row->titol_coleccio != NULL) 
+			insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, false) );
+		// inserta Tag Autor
+		$imgAutordesti = insertarTag($wpdb, assignaDadesTag($post_ids[0], $row) );
+		// renombra i mou imatge obra origen amb nom desti = postName
+		$res = renombraImatge( assignaDadesImatge($row, $row->work_code, $postValors->attachment[0]->postName ) );
+		if ($res != "") $res1 .= $res . ",";		
+		// renombra i mou imatge autor amb nom desti = slug
+		if ($imgAutordesti != "") 
+			{
+			$res = renombraImatgeAutor( assignaDadesImatge($row, $row->user_code, $imgAutordesti) );					
+			if ($res != "") $res2 .= $res . ",";
+			}
 		}
 	}
 
 
-if ($res1 != "") echo '</br>Error en imatges: ' . $res1;
+if ($res1 != "") echo '</br>Error en imatges obres: '  . $res1;
+if ($res2 != "") echo '</br>Error en imatges autors: ' . $res2;
 }
 
 /////////////////////////////////////////////////////////////////////////
@@ -63,10 +77,14 @@ if ($res1 != "") echo '</br>Error en imatges: ' . $res1;
 
 function assignaDadesPost($row)
 {
+	if ($row->nom_artista == NULL)
+		$nomArtista = $row->artist_name;
+	else
+		$nomArtista = $row->nom_artista;
 
 	$descripcio    = $row->work_description;
-	$titol         = $row->work_name;
-	$postName[0]   = sanitize_title($titol, $row->work_code);
+	$titol         = $row->work_name . '.' . $nomArtista . ',' . $row->work_year;
+	$postName[0]   = sanitize_title($titol, $row->work_code) . '-' . $row->work_code;
 	$postName[1]   = $postName[0];
 
 	$any[0]        = date("Y", strtotime($row->datetime_upload) );
@@ -74,22 +92,26 @@ function assignaDadesPost($row)
 	$filename[0]   = $postName[1] . '.jpg';
 
 	$postValors = (object)array(
-		'postType' 	 => '',
-		'postParent' => 0,
-		'descripcio' => $descripcio,
-		'titol'      => $titol,
-		'excerpt'	 => '',
-		'postName'   => $postName[0],
-		'mimeType'	 => '',
-		'guid'		 => '',
-		'attachment' => array(),
+		'postType' 	  => '',
+		'postParent'  => 0,
+		'descripcio'  => $descripcio,
+		'titol'       => $titol,
+		'excerpt'	  => '',
+		'postName'    => $postName[0],
+		'mimeType'	  => '',
+		'guid'		  => '',
+		'attachment'  => array(),
+		'postStatus' => 'publish',
+		'pingStatus' => 'closed'
 		);
 
 	$postValors->attachment[0] = (object)array(
-		'postName'   => $postName[1],
-		'any'		 => $any[0],
-		'mes'		 => $mes[0],
-		'filename'   => $filename[0]
+		'postName'    => $postName[1],
+		'any'		  => $any[0],
+		'mes'		  => $mes[0],
+		'filename'    => $filename[0],
+		'postStatus' => 'inherit',
+		'pingStatus' => 'open'
 		);
 
 	return ($postValors);
@@ -97,28 +119,28 @@ function assignaDadesPost($row)
 
 function assignaDadesPostMeta($row)
 {
-	$pes       = '';
-	$ample     = '';
-
 	$postMetaValors = (object)array(
 		'post_id' 		 => 0,
 		'images_gallery' => '',
 		'sku'            => ('W' . (($row->work_code) + 100)),
 		'preu'           => $row->work_price,
 		'stock'          => 1,
-		'pes'            => $pes,
+		'pes'            => '',
 		'llarg'          => $row->work_x_size,
-		'ample'          => $ample,
-		'alt'            => $row->work_y_size	
+		'ample'          => '',
+		'alt'            => $row->work_y_size,
+		'estilObra'		 => $row->work_style,
+		'vendesTotals'   => $row->success_on_sale_process,
+		'stockStatus'    => $row->success_on_sale_process ? "outofstock" : "instock"
 		);
 	return ($postMetaValors);
 }
 
-function assignaDadesImatges($row, $postName)
+function assignaDadesImatge($row, $nomImgOrigen, $nomImgDesti)
 {
 	$arryDadesImatges = (object)array(
-		'nomImgOrigen' => $row->work_code,
-		'nomImgDesti'  => $postName,
+ 		'nomImgOrigen' => $nomImgOrigen,
+		'nomImgDesti'  => $nomImgDesti,
 		'anyImgOrigen' => date("Y", strtotime($row->datetime_upload) ),
 		'mesImgOrigen' => date("m", strtotime($row->datetime_upload) )
 		);
@@ -126,26 +148,65 @@ function assignaDadesImatges($row, $postName)
 }
 
 
-function assignaDadesCategoria($post_id, $row)
+function assignaDadesCategoria($post_id, $row, $tradicional)
 {
-	$arryDadesCategoria = (object)array(
-		'id_origen' => $id_origen,
-		'post_id'   => $post_id,		
-		'tipusTerm' => 'product_cat',
-		'nomTerm'   => 'nom_categoria',
-		'descTerm'  => 'descripcio_categoria'
-		);
+	if ($row->nom_artista == NULL)
+		$nomArtista = $row->artist_name;
+	else
+		$nomArtista = $row->nom_artista;
+
+	if (!$tradicional)
+		$arryDadesCategoria = (object)array(
+			'post_id'   => $post_id,
+			'tipusTerm' => 'product_cat',
+			'nomTerm'   => $nomArtista . '.' . $row->titol_coleccio,
+			'descTerm'  => $row->descripcio_coleccio
+			);
+	else
+		$arryDadesCategoria = (object)array(
+			'post_id'   => $post_id,
+			'tipusTerm' => 'product_cat',
+			'nomTerm'   => 'TRADICIONAL',
+			'descTerm'  => 'Obras de arte tradicionales'
+			);
 	return ($arryDadesCategoria);
 }
 
 function assignaDadesTag($post_id, $row)
 {
+	if ($row->nom_artista == NULL)
+		$nomArtista = $row->artist_name;
+	else
+		$nomArtista = $row->nom_artista;
+
+	$desc_tag  = "";
+	$imgAutor = ORIGEN_AUTOR_UPLOADS . $row->user_code . ".jpg";
+	if ($row->user_city != NULL)
+		$desc_tag .= sprintf("<em>%s </em>",$row->user_city);	
+	if ($row->pais != NULL)
+		$desc_tag .= sprintf("<em>(%s) </em>",$row->pais);	
+	if ($row->any_naixement != NULL)
+		$desc_tag .= sprintf("<em>, %d</em>",$row->any_naixement);
+	if ($row->user_city != NULL or $row->pais != NULL or $row->any_naixement != NULL)
+		$desc_tag .= "</br>";
+	if ($row->artist_web != NULL)
+		{
+		$linkAutor = substr($row->artist_web, 0, strpos($row->artist_web, ' '));
+		$desc_tag .= sprintf("Web artista: <a href='%s'>%s</a></br>';",$linkAutor, $linkAutor);
+		}
+	if ($row->artist_about != NULL)
+		$desc_tag .= sprintf("%s</br>",$row->artist_about);
+	if ($row->artist_cv != NULL)
+		$desc_tag .= sprintf("%s</br>",$row->artist_cv);	
+
 	$arryDadesTag = (object)array(
-		'id_origen' => $id_origen,
-		'post_id'   => $post_id,
-		'tipusTerm' => 'product_tag',
-		'nomTerm'   => 'nom_tag',
-		'descTerm'  => 'descripcio_tag'
+		'post_id'      => $post_id,
+		'tipusTerm'    => 'product_tag',
+		'nomTerm'      => $nomArtista,
+		'descTerm'     => $desc_tag,
+		'imgAutor'     => $imgAutor,
+		'anyImgOrigen' => date("Y", strtotime($row->datetime_upload) ),
+		'mesImgOrigen' => date("m", strtotime($row->datetime_upload) )
 		);
 	return ($arryDadesTag);
 }
@@ -154,12 +215,23 @@ function assignaDadesTag($post_id, $row)
 function getDadesDBOrigen()
 {
 	$query = sprintf("SELECT CONCAT(CONCAT(ap_users.user_name,' '),ap_users.user_second_name) AS nom_artista, 
-							 ap_collections.title AS titol_coleccio,
+		 					 ap_users.artist_name,
+							 ap_collections.title       AS titol_coleccio,
+							 ap_collections.description AS descripcio_coleccio,
+							 ap_users.user_code,
+							 ap_users.artist_web,
+							 ap_users.artist_about,
+							 ap_users.artist_cv,
+							 country_t.short_name AS pais,
+							 ap_users.user_city,
+							 ap_users.year        AS any_naixement,
 							 ap_works.*
 						FROM ap_works
 							INNER JOIN ap_users       ON ap_works.user_code       = ap_users.user_code
     						LEFT JOIN  ap_collections ON ap_works.collection_code = ap_collections.collection_code
-						WHERE artist_profile = '1' LIMIT 1;");
+    						LEFT JOIN country_t on (ap_users.user_country = country_t.country_id)
+						WHERE artist_profile = '1'
+						and ap_works.user_code = 244;");
 	$response = (object)controlErrorQuery( dbExec(DB_ORIGEN, $query) );
 	return ($response);
 }
@@ -168,6 +240,25 @@ function renombraImatge( $dadesImatges )
 {
 	$res = "";
 	$imgOrigen = ORIGEN_UPLOADS . $dadesImatges->nomImgOrigen . ".jpg";
+	$imgDesti  = DESTINACIO_UPLOADS . '/' . 
+								$dadesImatges->anyImgOrigen . '/' .
+								$dadesImatges->mesImgOrigen  . '/' .
+								$dadesImatges->nomImgDesti   . ".jpg";
+	if (file_exists($imgOrigen))
+		{
+		$res = rename($imgOrigen, $imgDesti);
+		if (!$res) $res = $dadesImatges->nomImgOrigen . '.jpg';
+		else $res = "";
+		}
+	else
+		$res = $dadesImatges->nomImgOrigen . '.jpg';
+	return ($res);
+}
+
+function renombraImatgeAutor( $dadesImatges )
+{
+	$res = "";
+	$imgOrigen = ORIGEN_AUTOR_UPLOADS . $dadesImatges->nomImgOrigen . ".jpg";
 	$imgDesti  = DESTINACIO_UPLOADS . '/' . 
 								$dadesImatges->anyImgOrigen . '/' .
 								$dadesImatges->mesImgOrigen  . '/' .
@@ -209,7 +300,9 @@ function addPost( $postValors )
 	    								$attData->mes .  '/' .
 	    								$attData->filename;
 		    	$postValors->postName = $attData->postName;
-				$postValors->guid = $attachment;	    	
+				$postValors->guid = $attachment;
+				$postValors->postStatus = $attData->postStatus;
+				$postValors->pingStatus = $attData->pingStatus;				
 			    $post        = getArrayPost( $postValors );
 	    		$post_ids[]  = wp_insert_post($post);
 				}
@@ -238,9 +331,9 @@ function getArrayPost( $postValors )
         'post_content'          => $postValors->descripcio,
         'post_title'            => $postValors->titol,
         'post_excerpt'          => $postValors->excerpt,
-        'post_status'           => 'publish', 
+        'post_status'           => $postValors->postStatus, 
         'comment_status'        => 'open', 
-        'ping_status'           => 'open', 
+        'ping_status'           => $postValors->pingStatus,
 		'post_password'         => '',
 		'post_name'             => $postValors->postName,
 		'to_ping'               => '',
@@ -281,12 +374,13 @@ function addPostMeta($post_ids, $postValors, $postMetaValors)
 function getArrayPostMeta( $postMetaValors )
 {
 	$postMeta = array(
-		'total_sales'            => 0,
+		'total_sales'            => $postMetaValors->vendesTotals,
+		'style'					 => $postMetaValors->estilObra,		
 		'_edit_lock'             => (time().':1'),
 		'_edit_last'             => '1',
 		'_thumbnail_id'          => $postMetaValors->post_id,
 		'_visibility'            => 'visible',
-		'_stock_status'          => 'instock',
+		'_stock_status'          => $postMetaValors->stockStatus,
 		'_downloadable'          => 'no',
 		'_virtual'               => 'no',
 		'_regular_price'         => $postMetaValors->preu,
@@ -318,7 +412,7 @@ function getArrayPostMeta( $postMetaValors )
 }
 
 
-function insertarCategoriaTag($wpdb, $dades)
+function insertarCategoria($wpdb, $dades)
 {
 	$tt_array = wp_insert_term(
 	  $dades->nomTerm, // the term 
@@ -329,7 +423,7 @@ function insertarCategoriaTag($wpdb, $dades)
 	    'parent'=> 0
 	  )
 	);
-
+	// crea la relació entre la categoria i el producte
 	if ($tt_array->error_data)
 		{
 		$tt = $tt_array->error_data;
@@ -341,6 +435,60 @@ function insertarCategoriaTag($wpdb, $dades)
 	$wpdb->insert( $wpdb->term_relationships, array( 'object_id'        => $dades->post_id, 
 													 'term_taxonomy_id' => $tt )
 												   ); 
+}
+
+// retorna el nom de la imatge desti generat al WP com un slug
+function insertarTag($wpdb, $dades)
+{
+	$nomArtista = $dades->nomTerm;
+	// inserta el tag sense descipció ja que necessitem el slug que genera per formar el nom de la imatge del autor
+	$tt_array = wp_insert_term(
+	  $dades->nomTerm, // the term 
+	  $dades->tipusTerm, // the taxonomy
+	  array(
+	    'description'=> $dades->descTerm,
+	    'slug' => '',
+	    'parent'=> 0
+	  )
+	);
+	// crea la relació entre el tag i el producte
+	if ($tt_array->error_data)
+		{
+		$tt = $tt_array->error_data;
+		$tt = $tt['term_exists'];
+		}
+	else
+		{
+		$tt = $tt_array['term_id'];
+		$aa = array();
+		$aa[] = $tt;
+		wp_update_term_count_now( $aa , $dades->tipusTerm );		
+		}
+
+	$wpdb->insert( $wpdb->term_relationships, array( 'object_id'        => $dades->post_id, 
+													 'term_taxonomy_id' => $tt )); 
+	$imgAutordesti = "";
+	// en el cas que l'autor tingui una imatge la afegeix al tag
+	if (file_exists($dades->imgAutor) )
+	{
+		$term = get_term(
+		  $tt, // the term 
+		  $dades->tipusTerm // the taxonomy
+		);
+
+		var_dump($term->slug );
+		$imgAutordesti = DESTINACIO_UPLOADS . $dades->anyImgOrigen . '/' .
+											  $dades->mesImgOrigen . '/' .
+											  $term->slug          . ".jpg";
+		$descImgAutor = sprintf("<p><img src='%s' alt='%s' width='150' height='150'
+							     style='float:left;margin-right:10px;margin-bottom:10px;'/>",$imgAutordesti, $nomArtista);
+		$dades->descTerm = $descImgAutor . $dades->descTerm;
+		$imgAutordesti = $term->slug;
+		// afegeix la descripció del tag
+		wp_update_term($tt,  $dades->tipusTerm, array('description'=> $dades->descTerm));
+	}
+
+	return($imgAutordesti);
 }
 
 function dbExec($db, $query, $tipusResultat=1) {

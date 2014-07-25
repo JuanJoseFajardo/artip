@@ -1,10 +1,8 @@
 
-1. crear tags amb Autor1, autor2, autor3
+1. crear categories Digital
 
-2. crear categories Digital, Tradicional i Colecció
+2. procés que associï els productes digitals amb la categoria DIGITAL (tipus ="product_cat")
 
-3. procés que afegeixi l'autor del titol al tag d'autor (tipus ="product_tag")
+3. imports pel transport.
 
-4. procés que associï els productes digitals amb la categoria DIGITAL (tipus ="product_cat")
-
-5. mides i pesos pel transport.
+4. categories --> nom autor + nom colecció
