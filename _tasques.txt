@@ -5,4 +5,4 @@
 
 3. imports pel transport.
 
-4. categories --> nom autor + nom colecció
+4. dades dels autors de artinpocket.cat
