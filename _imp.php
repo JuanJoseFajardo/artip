@@ -45,22 +45,48 @@ if ($dades->status != "error")
 		// var_dump($post_ids);
 		// afegeix un postMeta amb el producte + attachment de la imatge
 		addPostMeta( $post_ids, $postValors, assignaDadesPostMeta($row) );
-		// inserta categoria TRADICIONAL
-		$idCategoria = insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, true) );
+		// inserta categoria TRADICIONALES
+		insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, "TRADICIONALES") );
 		// inserta categoria colecció
+		$post_idCol = 0;
 		if ($row->titol_coleccio != NULL)
 			{
-			insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, false) );
-			insertarRelacioImatgeColeccio($post_ids[0], $idCategoria);
-			// renombra i mou imatge obra origen amb nom desti = postName
-			renombraImatge( assignaDadesImatge($row, $row->img_coleccio, $postValors->attachment[1]->postName ) );			
+			// inserta categoria = nom autor + coleccio
+			$idCategoria        = insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, "") );
+			// si ja la categoria de la colecció s'acaba de crear, inserta els registres de post, postmeta i relaciona
+			$resp = getRelacioImatgeColeccio($idCategoria);
+			if ( $resp->status == '' and $resp->records == array())
+				{
+				// crea registres amb imatge de la colecció si es diferent a la imatge de la obra
+				// if ($row->img_coleccio > 0  and $row->img_coleccio != $row->work_code)
+					// {
+					// obté les dades de la colecció per inserrir el post
+					$postValorsColeccio = assignaDadesPostColeccio($row);
+					// crea l'estructura de dades per inserrir el post
+					$post          	    = getArrayPost( $postValorsColeccio );
+					// insereix el post
+			    	$post_idCol  		= wp_insert_post($post);
+					// insereix el link de la imatge de la colecció en el wp_metapost			
+					update_post_meta($post_idCol, '_wp_attached_file', $postValorsColeccio->filename);
+					// relaciona la imatge de la colecció amb la categoria de la colecció
+					insertarRelacioImatgeColeccio($wpdb, $post_idCol, $idCategoria);					
+					// copia imatge coleccio origen amb nom desti = postName
+					renombraCopiaImatge( assignaDadesImatge($row, $row->img_coleccio, $postValorsColeccio->postName ), false );
+					// }
+				// else
+					// {
+					// relaciona la imatge de la colecció amb la categoria de la colecció
+					// en el cas que la imatge de la colecció sigui la mateixa que la de la obra
+					// insertarRelacioImatgeColeccio($wpdb, $post_ids[1], $idCategoria);											
+					// }
+				}
 			}
 		// inserta Tag Autor
 		$imgAutordesti = insertarTag($wpdb, assignaDadesTag($post_ids[0], $row) );
 		// inserta codi transport
 		insertarCategoria($wpdb, assignaDadesTransport($post_ids[0]) );
 		// renombra i mou imatge obra origen amb nom desti = postName
-		$res = renombraImatge( assignaDadesImatge($row, $row->work_code, $postValors->attachment[0]->postName ) );
+		$res = renombraCopiaImatge( assignaDadesImatge($row, $row->work_code, $postValors->attachment[0]->postName ) );
 		if ($res != "") $res1 .= $res . ",";		
 		// renombra i mou imatge autor amb nom desti = slug
 		if ($imgAutordesti != "") 
@@ -68,7 +94,11 @@ if ($dades->status != "error")
 			$res = renombraImatgeAutor( assignaDadesImatge($row, $row->user_code, $imgAutordesti) );					
 			if ($res != "") $res2 .= $res . ",";
 			}
-		echo '<br/>' . ++$comptador . '  -->  ' . $row->work_code . '  -->  ' . $post_ids[0];
+		echo '<br/>' . ++$comptador     . ' --> ' . 
+					$row->work_code     . ' --> ' .
+					$post_ids[0]        . ' --> ' .
+					$row->img_coleccio  . ' --> ' .
+					$post_idCol ;
 		}
 	}
 
@@ -76,7 +106,7 @@ if ($res1 != "") $res1 =  '</br>Error en imatges obres: '  . $res1;
 if ($res2 != "") $res2 =  '</br>Error en imatges autors: ' . $res2;
 
 $res1 .= ('</br></br>' . $res2);
-$res1 .= "FINNNNNNNNNNNNN";
+$res1 .= "FINALLLLLLLLLLLLLLL";
 
 return ($res1);
 }
@@ -95,12 +125,10 @@ function assignaDadesPost($row)
 	$titol         = $row->work_name . '.' . $nomArtista . ',' . $row->work_year;
 	$postName[0]   = sanitize_title($titol, $row->work_code) . '-' . $row->work_code;
 	$postName[1]   = $postName[0];
-	$postName[2]   = sanitize_title($row->titol_coleccio, $row->img_coleccio) . '-' . $row->img_coleccio;	
 
 	$any[0]        = date("Y", strtotime($row->datetime_upload) );
 	$mes[0]        = date("m", strtotime($row->datetime_upload) );
 	$filename[0]   = $postName[1] . '.jpg';
-	$filename[1]   = $postName[2] . '.jpg';
 
 	$postValors = (object)array(
 		'postType' 	  => '',
@@ -125,16 +153,32 @@ function assignaDadesPost($row)
 		'pingStatus' => 'open'
 		);
 
-	if ($row->img_coleccio > 0)
-		$postValors->attachment[1] = (object)array(
-		'postName'    => $postName[2],
-		'any'		  => $any[0],
-		'mes'		  => $mes[0],
-		'filename'    => $filename[1],
-		'postStatus' => 'inherit',
-		'pingStatus' => 'open'
-		);
 	return ($postValors);
+}
+
+function assignaDadesPostColeccio($row)
+{
+	$postName   = sanitize_title($row->titol_coleccio, $row->img_coleccio);
+	$postName  .= '-' . $row->collection_code . '-' . $row->img_coleccio;	
+	$any        = date("Y", strtotime($row->datetime_upload) );
+	$mes        = date("m", strtotime($row->datetime_upload) );
+	$filename   = $postName . '.jpg';
+	$attachment = DOMINI .'/wp-content/uploads/' . $any .  '/' . $mes .  '/' . $filename;
+	$postValorsColeccio = (object)array(
+		'postType' 	  => 'attachment',
+		'postParent'  => 0,
+		'descripcio'  => $row->descripcio_coleccio,
+		'titol'       => $row->titol_coleccio,
+		'excerpt'	  => $row->titol_coleccio,
+		'postName'    => $postName,
+		'mimeType'	  => 'image/jpeg',
+		'guid'		  => $attachment,
+		'attachment'  => array(),
+		'postStatus'  => 'inherit',
+		'pingStatus'  => 'open',
+		'filename'    => $any .  '/' . $mes .  '/' . $filename
+		);
+	return ($postValorsColeccio);
 }
 
 function assignaDadesPostMeta($row)
@@ -168,26 +212,28 @@ function assignaDadesImatge($row, $nomImgOrigen, $nomImgDesti)
 }
 
 
-function assignaDadesCategoria($post_id, $row, $tradicional)
+function assignaDadesCategoria($post_id, $row, $tipusCategoria)
 {
-	if ($row->nom_artista == NULL)
-		$nomArtista = $row->artist_name;
-	else
-		$nomArtista = $row->nom_artista;
+	if ($tipusCategoria == "")
+		{
+		if ($row->nom_artista == NULL)
+			$nomArtista = $row->artist_name;
+		else
+			$nomArtista = $row->nom_artista;
 
-	if (!$tradicional)
 		$arryDadesCategoria = (object)array(
 			'post_id'   => $post_id,
 			'tipusTerm' => 'product_cat',
 			'nomTerm'   => $nomArtista . '. ' . $row->titol_coleccio,
 			'descTerm'  => $row->descripcio_coleccio
 			);
+		}
 	else
 		$arryDadesCategoria = (object)array(
 			'post_id'   => $post_id,
 			'tipusTerm' => 'product_cat',
-			'nomTerm'   => 'TRADICIONAL',
-			'descTerm'  => 'Obras de arte tradicionales'
+			'nomTerm'   => $tipusCategoria,
+			'descTerm'  => 'Obras de arte ' . $tipusCategoria
 			);
 	return ($arryDadesCategoria);
 }
@@ -263,13 +309,16 @@ function getDadesDBOrigen()
     						LEFT JOIN  ap_collections ON ap_works.collection_code = ap_collections.collection_code
     						LEFT JOIN country_t on (ap_users.user_country = country_t.country_id)
 						WHERE artist_profile = '1'
+						-- and (cover_work = 222 or cover_work = 228 or cover_work = 232)
+						-- and (cover_work = 155 or cover_work = 160 or cover_work = 217)						
 						-- and ap_works.user_code = 418
+						ORDER BY cover_work,work_code
 						;");
 	$response = (object)controlErrorQuery( dbExec(DB_ORIGEN, $query) );
 	return ($response);
 }
 
-function renombraImatge( $dadesImatges )
+function renombraCopiaImatge( $dadesImatges, $renombra=true )
 {
 	$res = "";
 	$imgOrigen = ORIGEN_UPLOADS . $dadesImatges->nomImgOrigen . ".jpg";
@@ -279,7 +328,8 @@ function renombraImatge( $dadesImatges )
 								$dadesImatges->nomImgDesti   . ".jpg";
 	if (file_exists($imgOrigen))
 		{
-		$res = rename($imgOrigen, $imgDesti);
+		if ($renombra) $res = rename($imgOrigen, $imgDesti);
+		else  $res = copy($imgOrigen, $imgDesti);
 		if (!$res) $res = $dadesImatges->nomImgOrigen . '.jpg';
 		else $res = "";
 		}
@@ -477,6 +527,34 @@ function insertarCategoria($wpdb, $dades)
 	return($tt);
 }
 
+// inserta la relació entre la categoria de la colecció el post a on está especificada la imatge de la colecció.
+function insertarRelacioImatgeColeccio($wpdb, $post_idCol, $idCategoria)
+{
+	$wpdb->insert( $wpdb->wp_prefix .'wp_woocommerce_termmeta', array( 'woocommerce_term_id' => $idCategoria,
+													 'meta_key' => 'order', 
+							 						 'meta_value' => 0)
+												   ); 
+	$wpdb->insert( $wpdb->wp_prefix .'wp_woocommerce_termmeta', array( 'woocommerce_term_id' => $idCategoria,
+													 'meta_key' => 'display_type',
+							 						 'meta_value' => '')
+												   );
+	$wpdb->insert( $wpdb->wp_prefix .'wp_woocommerce_termmeta', array( 'woocommerce_term_id' => $idCategoria,
+													 'meta_key' => 'thumbnail_id', 
+							 						 'meta_value' => $post_idCol)
+												   );												   	
+}
+
+// obté la relació de la colecció amb la imatge de la colecció
+function getRelacioImatgeColeccio($idCategoria)
+{
+	$query = sprintf("SELECT * 
+						FROM wp_woocommerce_termmeta
+						WHERE woocommerce_term_id = '%d' AND
+							  meta_key            = 'thumbnail_id';",$idCategoria);
+	$response = (object)controlErrorQuery( dbExec(DB_NAME, $query) );	
+	return($response);
+}
+
 // retorna el nom de la imatge desti generat al WP com un slug
 function insertarTag($wpdb, $dades)
 {
@@ -601,6 +679,29 @@ function controlErrorQuery($response)
         $response = array("status" => "" , 'total' => count($response[1]), 'page' => 0, 'records' => $response[1]);
     return ($response);
 }
+
+
+function assignaCatDigital($wpdb)
+{
+	$query = sprintf("SELECT * 
+						FROM wp_posts
+						WHERE post_type = 'product';");
+	$response = (object)controlErrorQuery( dbExec(DB_NAME, $query) );	
+	if ($response->status != "error")
+		{
+		foreach ($response->records as $row)
+			{
+			echo ++$i . " - " .$row->ID . "</br>";
+			// inserta categoria DIGITALES
+			insertarCategoria($wpdb, assignaDadesCategoria($row->ID, "", "DIGITALES") );			
+			}
+		}
+	return ("final");
+}
+
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 // renombra les imatges amb el nom de la obra.

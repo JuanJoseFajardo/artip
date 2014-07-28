@@ -1,8 +1,4 @@
 
-1. crear categories Digital
+1. imports pel transport.
 
-2. procés que associï els productes digitals amb la categoria DIGITAL (tipus ="product_cat")
-
-3. imports pel transport.
-
-4. dades dels autors de artinpocket.cat
+2. dades dels autors de artinpocket.cat
