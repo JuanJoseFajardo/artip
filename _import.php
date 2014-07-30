@@ -26,7 +26,6 @@ include ("./_imp.php");
 				</br></br></br></br>
 				<form id="formart" name="impexp" action= "<?php echo $_SERVER['PHP_SELF']; ?>" method = "post">
 					<input type="submit" name="import" value="Importar"/>
-					<input type="submit" name="catDigital" value="Assignar Cat. DIGITAL"/>
  				</form>
 			</article>
 			<article id="peu">
@@ -40,5 +39,4 @@ include ("./_imp.php");
 
 <?php
 if ( isset($_POST["import"]) ) echo (importExport($wpdb) );
-if ( isset($_POST["catDigital"]) ) echo (assignaCatDigital($wpdb) );
 ?>

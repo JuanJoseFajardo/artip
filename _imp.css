@@ -1,0 +1,12 @@
+/*classe del tag. div d'autor*/
+.divAutor
+	{
+	min-height:160;	
+	}
+/*classe del tag. imatge d'autor*/
+.imgAutor
+	{
+	float:left;
+	margin-right:10px;
+	margin-bottom:10px;	
+	}

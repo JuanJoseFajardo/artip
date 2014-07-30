@@ -1,4 +1,13 @@
 
-1. imports pel transport.
+Objectius: 
+	1. Integrar les dades d'obres d'artistes del web propi www.artinpocket.cat amb base de dades MySql a un web customitzat amb una implementació Woocommerce sobre WordPress que ja funciona sobre el web www.inpocketart.com.
+	2. El resultat de l'integració deixar-la operativa al web www.artinpocket.cat, deshabilitant l'anterior web propi.
 
-2. dades dels autors de artinpocket.cat
+1. Compra de domini de proves i configuració per la seva gestió.
+2. Inciació, conceptes e instalació al WordPress amb woocommerce. Instal.lació de plugins i plantilles.
+3. Administració de bases de dades Mysql i WordPress.
+4. Estudi de les taules del web propi i de WordPress per preparar la migració de la base de dades Mysql a WordPress.
+5. Trobar funcions pròpies del WordPress per gestionar les dades de les seves taules.
+6. Crear un programari amb llenguatje php per realitzar la migració de dades.
+7. Pujar aplicacions a servidors web
+ 

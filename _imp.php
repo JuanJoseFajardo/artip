@@ -1,19 +1,13 @@
 <?php
 
-const ARTINPOCKET_CAT      = true;
 const ORIGEN_UPLOADS       = './_obres.cat/'; 
 const ORIGEN_AUTOR_UPLOADS = './_autors.cat/'; 
 const DESTINACIO_UPLOADS   = './wp-content/uploads/'; 
 const DESTINACIO_IMG_AUTOR = '/wp-content/uploads/'; 
 const DB_ORIGEN            = 'wpartinpocket.cat';
-
-if (ARTINPOCKET_CAT)
-	define('DOMINI' , 'http://www.artinpocket.cat');
-else
-	define('DOMINI' , 'http://www.inpocketart.com');	
-
-// define('IMG_AUTOR'  , 'http://localhost/artinpocket' . '/' . DESTINACIO_UPLOADS);
-define('IMG_AUTOR'  , DOMINI . DESTINACIO_IMG_AUTOR);
+const obres_tradicionals   = "-ANALOGIC";
+const obres_digitals       = "-DIGITAL";
+const DOMINI 			   = 'http://www.artinpocket.cat';
 
 require_once( $_SERVER['DOCUMENT_ROOT'] . '/artinpocket/wp-config.php' );
 require_once( $_SERVER['DOCUMENT_ROOT'] . '/artinpocket/wp-includes/wp-db.php' );
@@ -29,56 +23,50 @@ function importExport($wpdb)
 $res1 = $res2 = "";
 $comptador = 0;
 
+assignaCatDigital($wpdb);
+
 $dades = getDadesDBOrigen();
 
 if ($dades->status != "error")
 	{
 	foreach ($dades->records as $row)
 		{
+		$userId = importaUsuari($row);
 		// print_r($row);
 		// echo "</br></br>";
 		$postValors = assignaDadesPost($row);
 		// print_r($postValors);
 		// echo "</br></br>";
 		// afegeix un post amb el producte + attachment de la imatge
-		$post_ids = addPost( $postValors );
+		$post_ids = addPost( $postValors, $userId );
 		// var_dump($post_ids);
 		// afegeix un postMeta amb el producte + attachment de la imatge
-		addPostMeta( $post_ids, $postValors, assignaDadesPostMeta($row) );
+		addPostMeta( $post_ids, $postValors, assignaDadesPostMeta($row), $userId );
 		// inserta categoria TRADICIONALES
-		insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, "TRADICIONALES") );
+		insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, obres_tradicionals) );
 		// inserta categoria colecció
 		$post_idCol = 0;
 		if ($row->titol_coleccio != NULL)
 			{
 			// inserta categoria = nom autor + coleccio
-			$idCategoria        = insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, "") );
+			$idCategoria = insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, "") );
 			// si ja la categoria de la colecció s'acaba de crear, inserta els registres de post, postmeta i relaciona
 			$resp = getRelacioImatgeColeccio($idCategoria);
 			if ( $resp->status == '' and $resp->records == array())
 				{
 				// crea registres amb imatge de la colecció si es diferent a la imatge de la obra
-				// if ($row->img_coleccio > 0  and $row->img_coleccio != $row->work_code)
-					// {
-					// obté les dades de la colecció per inserrir el post
-					$postValorsColeccio = assignaDadesPostColeccio($row);
-					// crea l'estructura de dades per inserrir el post
-					$post          	    = getArrayPost( $postValorsColeccio );
-					// insereix el post
-			    	$post_idCol  		= wp_insert_post($post);
-					// insereix el link de la imatge de la colecció en el wp_metapost			
-					update_post_meta($post_idCol, '_wp_attached_file', $postValorsColeccio->filename);
-					// relaciona la imatge de la colecció amb la categoria de la colecció
-					insertarRelacioImatgeColeccio($wpdb, $post_idCol, $idCategoria);					
-					// copia imatge coleccio origen amb nom desti = postName
-					renombraCopiaImatge( assignaDadesImatge($row, $row->img_coleccio, $postValorsColeccio->postName ), false );
-					// }
-				// else
-					// {
-					// relaciona la imatge de la colecció amb la categoria de la colecció
-					// en el cas que la imatge de la colecció sigui la mateixa que la de la obra
-					// insertarRelacioImatgeColeccio($wpdb, $post_ids[1], $idCategoria);											
-					// }
+				// obté les dades de la colecció per inserrir el post
+				$postValorsColeccio = assignaDadesPostColeccio($row);
+				// crea l'estructura de dades per inserrir el post
+				$post          	    = getArrayPost( $postValorsColeccio, $userId );
+				// insereix el post
+		    	$post_idCol  		= wp_insert_post($post);
+				// insereix el link de la imatge de la colecció en el wp_metapost			
+				update_post_meta($post_idCol, '_wp_attached_file', $postValorsColeccio->filename);
+				// relaciona la imatge de la colecció amb la categoria de la colecció
+				insertarRelacioImatgeColeccio($wpdb, $post_idCol, $idCategoria);					
+				// copia imatge coleccio origen amb nom desti = postName
+				renombraCopiaImatge( assignaDadesImatge($row, $row->img_coleccio, $postValorsColeccio->postName ), false );
 				}
 			}
 		// inserta Tag Autor
@@ -122,7 +110,7 @@ function assignaDadesPost($row)
 		$nomArtista = $row->nom_artista;
 
 	$descripcio    = $row->work_description;
-	$titol         = $row->work_name . '.' . $nomArtista . ',' . $row->work_year;
+	$titol         = $row->work_name . '. ' . $nomArtista . ', ' . $row->work_year;
 	$postName[0]   = sanitize_title($titol, $row->work_code) . '-' . $row->work_code;
 	$postName[1]   = $postName[0];
 
@@ -233,7 +221,7 @@ function assignaDadesCategoria($post_id, $row, $tipusCategoria)
 			'post_id'   => $post_id,
 			'tipusTerm' => 'product_cat',
 			'nomTerm'   => $tipusCategoria,
-			'descTerm'  => 'Obras de arte ' . $tipusCategoria
+			'descTerm'  => ''
 			);
 	return ($arryDadesCategoria);
 }
@@ -255,9 +243,13 @@ function assignaDadesTag($post_id, $row)
 		$desc_tag .= sprintf("<em>, %d</em>",$row->any_naixement);
 	if ($row->user_city != NULL or $row->pais != NULL or $row->any_naixement != NULL)
 		$desc_tag .= "</br>";
-	if ($row->artist_web != NULL)
+	if ($row->artist_web != NULL and $row->artist_web != "")
 		{
-		$linkAutor = substr($row->artist_web, 0, strpos($row->artist_web, ' '));
+		// si troba més d'un web separat per espai
+		if (strpos($row->artist_web, ' ') > 0)
+			$linkAutor = substr($row->artist_web, 0, strpos($row->artist_web, ' '));
+		else
+			$linkAutor = $row->artist_web;
 		$desc_tag .= sprintf("Web artista: <a href='%s'>%s</a></br>",$linkAutor, $linkAutor);
 		}
 	if ($row->artist_about != NULL)
@@ -291,14 +283,25 @@ function assignaDadesTransport($post_id)
 
 function getDadesDBOrigen()
 {
+
 	$query = sprintf("SELECT CONCAT(CONCAT(ap_users.user_name,' '),ap_users.user_second_name) AS nom_artista, 
 		 					 ap_users.artist_name,
 							 ap_collections.title       AS titol_coleccio,
 							 ap_collections.description AS descripcio_coleccio,
 							 ap_users.user_code,
+							 ap_users.user_id,
+							 ap_users.user_pw,
+							 ap_users.user_mail,
+							 ap_users.user_name,
+							 ap_users.user_second_name,
+							 ap_users.user_nif,
+							 ap_users.user_adress,
+							 ap_users.user_cp,							 
+							 ap_users.last_modified_datetime,
 							 ap_users.artist_web,
 							 ap_users.artist_about,
 							 ap_users.artist_cv,
+							 ap_users.phone,
 							 country_t.short_name       AS pais,
 							 ap_users.user_city,
 							 ap_users.year              AS any_naixement,
@@ -357,11 +360,11 @@ function renombraImatgeAutor( $dadesImatges )
 	return ($res);
 }
 
-function addPost( $postValors )
+function addPost( $postValors, $userId )
 {
 	$post_ids = array();
 	$postValors->postType = 'product';
-    $post = getArrayPost( $postValors);
+    $post = getArrayPost( $postValors, $userId);
     if($post_ids[] = wp_insert_post($post))
     	{
     	if (updateGuid( $post_ids[0]) != 'error')
@@ -386,7 +389,7 @@ function addPost( $postValors )
 				$postValors->guid = $attachment;
 				$postValors->postStatus = $attData->postStatus;
 				$postValors->pingStatus = $attData->pingStatus;				
-			    $post        = getArrayPost( $postValors );
+			    $post        = getArrayPost( $postValors, $userId );
 	    		$post_ids[]  = wp_insert_post($post);
 				}
 	    	}
@@ -404,11 +407,11 @@ function updateGuid($post_id)
 	return($response['status']);
 }
 
-function getArrayPost( $postValors )
+function getArrayPost( $postValors, $userId )
 {
 	$dateTime = date("Y-n-j H:i:s");
 	$post = array(
-		'post_author'           => 1,
+		'post_author'           => $userId,
 		'post_date'             => $dateTime,
 		'post_date_gmt'         => $dateTime,
         'post_content'          => $postValors->descripcio,
@@ -435,12 +438,12 @@ function getArrayPost( $postValors )
 }
 
 
-function addPostMeta($post_ids, $postValors, $postMetaValors)
+function addPostMeta($post_ids, $postValors, $postMetaValors, $userId)
 {
 	$postMetaValors->post_id = $post_ids[1];
 	// $aa = implode ( ',', $post_ids);
 	// $postMetaValors->images_gallery = substr($aa, strpos($aa, ',')+1, 99);
-	$postMeta = getArrayPostMeta( $postMetaValors );
+	$postMeta = getArrayPostMeta( $postMetaValors, $userId );
 	foreach($postMeta as $key=>$val)
 		{
 		// $query = sprintf("INSERT INTO wp_postmeta VALUES (NULL,'%d','%s','%s')",$post_ids[0], $key, $val);
@@ -460,13 +463,13 @@ function addPostMeta($post_ids, $postValors, $postMetaValors)
 		}
 }
 
-function getArrayPostMeta( $postMetaValors )
+function getArrayPostMeta( $postMetaValors, $userId )
 {
 	$postMeta = array(
 		'total_sales'            => $postMetaValors->vendesTotals,
 		'style'					 => $postMetaValors->estilObra,		
-		'_edit_lock'             => (time().':1'),
-		'_edit_last'             => '1',
+		'_edit_lock'             => (time().':'.$userId),
+		'_edit_last'             => $userId,
 		'_thumbnail_id'          => $postMetaValors->post_id,
 		'_visibility'            => 'visible',
 		'_stock_status'          => $postMetaValors->stockStatus,
@@ -512,7 +515,6 @@ function insertarCategoria($wpdb, $dades)
 	    'parent'=> 0
 	  )
 	);
-	// crea la relació entre la categoria i el producte
 	if ($tt_array->error_data)
 		{
 		$tt = $tt_array->error_data;
@@ -520,7 +522,7 @@ function insertarCategoria($wpdb, $dades)
 		}
 	else
 		$tt = $tt_array['term_id'];
-
+	// crea la relació entre la categoria i el producte
 	$wpdb->insert( $wpdb->term_relationships, array( 'object_id'        => $dades->post_id, 
 													 'term_taxonomy_id' => $tt )
 												   ); 
@@ -597,9 +599,9 @@ function insertarTag($wpdb, $dades)
 		// var_dump($term->slug );
 		$imgAutor = $dades->anyImgOrigen . '/' . $dades->mesImgOrigen . '/' . $term->slug          . ".jpg";
 		$imgAutordesti = DESTINACIO_UPLOADS . $imgAutor;
-		$imgAutor      = IMG_AUTOR . $imgAutor;
-		$descImgAutor = sprintf("<img src='%s' alt='%s' width='150' height='150' style='margin-right:10px;margin-bottom:10px;'/>",$imgAutor, $nomArtista);
-		$dades->descTerm = $descImgAutor . $dades->descTerm;
+		$imgAutor      = DESTINACIO_IMG_AUTOR . $imgAutor;
+		$descImgAutor = sprintf("<div class='divAutor'><img class='imgAutor' src='%s' alt='%s' width='150' height='150'/>",$imgAutor, $nomArtista);
+		$dades->descTerm = $descImgAutor . $dades->descTerm . "</div>";
 		$imgAutordesti = $term->slug;
 		// afegeix la descripció del tag
 		wp_update_term($tt,  $dades->tipusTerm, array('description'=> $dades->descTerm));
@@ -693,39 +695,59 @@ function assignaCatDigital($wpdb)
 			{
 			echo ++$i . " - " .$row->ID . "</br>";
 			// inserta categoria DIGITALES
-			insertarCategoria($wpdb, assignaDadesCategoria($row->ID, "", "DIGITALES") );			
+			insertarCategoria($wpdb, assignaDadesCategoria($row->ID, "", obres_digitals) );			
 			}
 		}
 	return ("final");
 }
 
+function importaUsuari($row)
+{
+	$aa    = array();
+	$aa['artist'] = 1;
+	if ($row->artist_web != NULL and $row->artist_web != "")
+		$link = substr($row->artist_web, 0, strpos($row->artist_web, ' '));
+	$userdata = array(
+	    'user_login'          =>  $row->user_id,
+	    'user_pass'           =>  wp_hash_password( $row->user_pw ),
+		'user_nicename'       =>  $row->user_name,
+		'user_email'          =>  $row->user_mail,
+		'user_url'            =>  $link,
+		'user_registered'     =>  $row->last_modified_datetime,
+		'user_activation_key' =>  '',
+		'user_status'         =>  0,
+		'display_name'        =>  $row->user_name . " " . $row->user_second_name
+	);
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-// renombra les imatges amb el nom de la obra.
-// $imgs = explode(",","123,148,149,150,151,152,153");
-// $res = "";
-
-// foreach ($imgs as $key => $value)
-// {
-// 	$nomImg = "imatge" . $value;
-// 	$any = "2015";
-// 	$mes = "07";
-// 	$res = renombraImatge($value, $nomImg, $any, $mes);
-// 	if ($res != "") $res1 .= $res . ",";
-// }
-// if ($res1 != "") echo '</br>Error en imatges: ' . $res1;
-
-
-// $query = $wpdb_other->prepare('SELECT * FROM wp_postmeta WHERE post_id=%d',2199);
-// $result = $wpdb_other->get_results($query);
-// echo "<ul>";
-// foreach ($result as $obj) :
-//    echo "<li>".$obj->meta_key. "-" . $obj->meta_value."</li>";
-// endforeach;
-// echo "</ul>";
-
+	$user_id = wp_insert_user( $userdata ) ;
+	//On success
+	if( !is_wp_error($user_id) )
+		{
+		if ( $row->artist_about != "" or $row->artist_cv != "")
+			$descripcio = $row->artist_about .' . '. $row->artist_cv;
+		else
+			$descripcio = "";
+		echo "</br>User created : ". $user_id;
+		update_user_meta( $user_id, 'first_name', $row->user_name);
+		update_user_meta( $user_id, 'last_name', $row->user_second_name);
+		update_user_meta( $user_id, 'nick_name', $row->user_id);
+		update_user_meta( $user_id, 'description', $descripcio);
+		update_user_meta( $user_id, 'rich_editing', true);
+		update_user_meta( $user_id, 'comment_shortcuts', false);
+		update_user_meta( $user_id, 'admin_color', fresh);
+		update_user_meta( $user_id, 'use_ssl', 0);
+		update_user_meta( $user_id, 'show_admin_bar_front', true);
+		update_user_meta( $user_id, 'wp_capabilities', $aa);
+		update_user_meta( $user_id, 'wp_user_level', 10);
+		update_user_meta( $user_id, 'dismissed_wp_pointers', 'wp350_media,wp360_revisions,wp360_locks,wp390_widgets');
+		update_user_meta( $user_id, 'billing_phone', $row->phone);
+		}
+	else
+		{
+		$tt_array = get_user_by( 'login', $row->user_id );
+		$user_id = $tt_array->ID;
+		}
+	return ($user_id);
+}
 
 ?>
