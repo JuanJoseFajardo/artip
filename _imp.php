@@ -90,7 +90,7 @@ if ($dades->status != "error")
 		}
 	}
 
-// assignaCatDigitalAndTagAutor($wpdb);
+assignaCatDigitalAndTagAutor($wpdb);
 
 if ($res1 != "") $res1 =  '</br>Error en imatges obres: '  . $res1;
 if ($res2 != "") $res2 =  '</br>Error en imatges autors: ' . $res2;
