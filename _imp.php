@@ -5,25 +5,25 @@ const ORIGEN_AUTOR_UPLOADS = './_autors.cat/';
 const DESTINACIO_UPLOADS   = './wp-content/uploads/'; 
 const DESTINACIO_IMG_AUTOR = '/wp-content/uploads/'; 
 const DB_ORIGEN            = 'wpartinpocket.cat';
-const obres_tradicionals   = "-ANALOGIC";
-const obres_digitals       = "-DIGITAL";
+const OBRES_TRADICIONALS   = "-ANALOGIC";
+const OBRES_DIGITALS       = "-DIGITAL";
 const DOMINI 			   = 'http://www.artinpocket.cat';
 
 require_once( $_SERVER['DOCUMENT_ROOT'] . '/artinpocket/wp-config.php' );
 require_once( $_SERVER['DOCUMENT_ROOT'] . '/artinpocket/wp-includes/wp-db.php' );
 $wpdb_other = new wpdb( DB_USER, DB_PASSWORD, DB_NAME, DB_HOST);
 
-// funcions de l'importació de dades de artinpocket.cat to inpocketart.com
+// funcions de l'importació de dades de artinpocket.cat a inpocketart.com
 
+//elimina el temps de resposta per defecte del php de 30 segons
 set_time_limit(0);
+//assigna més memòria
 ini_set('memory_limit', '2048M');
 
 function importExport($wpdb)
 {
 $res1 = $res2 = "";
 $comptador = 0;
-
-assignaCatDigital($wpdb);
 
 $dades = getDadesDBOrigen();
 
@@ -43,7 +43,7 @@ if ($dades->status != "error")
 		// afegeix un postMeta amb el producte + attachment de la imatge
 		addPostMeta( $post_ids, $postValors, assignaDadesPostMeta($row), $userId );
 		// inserta categoria TRADICIONALES
-		insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, obres_tradicionals) );
+		insertarCategoria($wpdb, assignaDadesCategoria($post_ids[0], $row, OBRES_TRADICIONALS) );
 		// inserta categoria colecció
 		$post_idCol = 0;
 		if ($row->titol_coleccio != NULL)
@@ -89,6 +89,8 @@ if ($dades->status != "error")
 					$post_idCol ;
 		}
 	}
+
+// assignaCatDigitalAndTagAutor($wpdb);
 
 if ($res1 != "") $res1 =  '</br>Error en imatges obres: '  . $res1;
 if ($res2 != "") $res2 =  '</br>Error en imatges autors: ' . $res2;
@@ -268,7 +270,23 @@ function assignaDadesTag($post_id, $row)
 		);
 	return ($arryDadesTag);
 }
+function assignaDadesTagDigital($post_id, $row)
+{
 
+	$nomArtista = substr($row->post_title, strpos($row->post_title, '. ')+1, 999);
+	$nomArtista = substr($nomArtista, 0, strpos($nomArtista, ','));
+
+	$arryDadesTag = (object)array(
+		'post_id'      => $post_id,
+		'tipusTerm'    => 'product_tag',
+		'nomTerm'      => $nomArtista,
+		'descTerm'     => '',
+		'imgAutor'     => '',
+		'anyImgOrigen' => '',
+		'mesImgOrigen' => ''		
+		);
+	return ($arryDadesTag);
+}
 function assignaDadesTransport($post_id)
 {
 	$arryDadesTransport = (object)array(
@@ -580,9 +598,9 @@ function insertarTag($wpdb, $dades)
 	else
 		{
 		$tt = $tt_array['term_id'];
-		$aa = array();
-		$aa[] = $tt;
-		wp_update_term_count_now( $aa , $dades->tipusTerm );		
+		// $aa = array();
+		// $aa[] = $tt;
+		// wp_update_term_count_now( $aa , $dades->tipusTerm );		
 		}
 
 	$wpdb->insert( $wpdb->term_relationships, array( 'object_id'        => $dades->post_id, 
@@ -683,11 +701,12 @@ function controlErrorQuery($response)
 }
 
 
-function assignaCatDigital($wpdb)
+function assignaCatDigitalAndTagAutor($wpdb)
 {
 	$query = sprintf("SELECT * 
 						FROM wp_posts
-						WHERE post_type = 'product';");
+						WHERE post_type = 'product' AND
+						ID < 2260;");
 	$response = (object)controlErrorQuery( dbExec(DB_NAME, $query) );	
 	if ($response->status != "error")
 		{
@@ -695,10 +714,11 @@ function assignaCatDigital($wpdb)
 			{
 			echo ++$i . " - " .$row->ID . "</br>";
 			// inserta categoria DIGITALES
-			insertarCategoria($wpdb, assignaDadesCategoria($row->ID, "", obres_digitals) );			
+			insertarCategoria($wpdb, assignaDadesCategoria($row->ID, "", OBRES_DIGITALS) );	
+			// inserta Tag Autor Digital
+			insertarTag($wpdb, assignaDadesTagDigital($row->ID, $row));
 			}
 		}
-	return ("final");
 }
 
 function importaUsuari($row)
@@ -709,7 +729,7 @@ function importaUsuari($row)
 		$link = substr($row->artist_web, 0, strpos($row->artist_web, ' '));
 	$userdata = array(
 	    'user_login'          =>  $row->user_id,
-	    'user_pass'           =>  wp_hash_password( $row->user_pw ),
+	    'user_pass'           =>  '',
 		'user_nicename'       =>  $row->user_name,
 		'user_email'          =>  $row->user_mail,
 		'user_url'            =>  $link,
@@ -723,6 +743,7 @@ function importaUsuari($row)
 	//On success
 	if( !is_wp_error($user_id) )
 		{
+		wp_set_password( $row->user_pw, $user_id );
 		if ( $row->artist_about != "" or $row->artist_cv != "")
 			$descripcio = $row->artist_about .' . '. $row->artist_cv;
 		else
