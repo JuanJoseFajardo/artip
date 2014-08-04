@@ -1,0 +1,33 @@
+
+Documentació de pasos a seguir per executar la integració de dades entre artinpocket.cat e inpocketart.com
+
+
+1. Crear carpeta al root del web local amb el nom = _autors.cat on posarem les imatges dels autors del artinpocket.cat /public/www/user_profiles_pictures
+
+2. Crear carpeta al root del web local amb el nom = _obres.cat on posarem les imatges de les obres del artinpocket.cat /public/www/user_images
+
+3. Creem una carpeta per cada any i mes al web local:
+	/wp-content/uploads/2012/12
+	/wp-content/uploads/2013/05, 06, 07, 08, 09, 10, 11 i 12
+	/wp-content/uploads/2014/01, 02, 03, 04, 05, 06, 07 i 08
+
+4. Copiar les imatges /wp-content/uploads del inpocketart.com a cadascuna de las carpetes del web local del punt anterior.
+
+5. Crear una base de dades amb el nom wpartinpocket.
+
+6. Executar el script wpartinpocket_origen_20140408.sql
+
+7. Desar al root del web local els arxius de script d'importació (_import.php e _imp.php)
+
+8. Executar el script /localhost/weblocal/_import.php
+
+9. Des del Dashboard, executar el plugin 'regenerate-thumbnails'. Parar-lo quan arribi a la imatge 2258.
+
+10. Des del Dashboard, editar de forma masiva els productes i fer un update de tots per regenerar els tags i categories
+
+11. Modificar si cal el fitxer .htaccess, localitzat al root del web local, per que estigui referenciat a /.
+
+12. Fer un volcat de la base de dades actualitzada wpartinpocket i volcar-la al nou web www.nouartinpocket.com
+
+13. Afegir a la fulla d'estils del thema els estils de l'arxiu (_imp.css) corresponents als tags de la fitxa de cada autor.
+
